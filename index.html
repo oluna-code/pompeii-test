@@ -229,8 +229,8 @@
 <p class="subtitle">Data from the <a href="https://palp.art" target="_blank">Pompeii Artistic Landscape Project</a> via <a href="https://api.p-lod.org" target="_blank">api.p-lod.org</a></p>
 
 <div id="cors-note">
-  <strong>Setup required:</strong> Deploy <code>palp-proxy-worker.js</code> as a Cloudflare Worker, then replace
-  <code>YOUR-WORKER-SUBDOMAIN</code> in the script below with your worker's URL.
+  <strong>Note:</strong> Concept filtering works by checking each visible area individually using <code>concepts_in_spatial</code>.
+  Drill into a region first, then click a concept — it will scan the visible areas and highlight matches.
 </div>
 
 <div id="toolbar">
@@ -335,6 +335,7 @@ let navStack       = [{ urn: 'urn:p-lod:id:pompeii', label: 'Pompeii' }];
 let activeConceptUrn = null;
 let activeTagEl    = null;
 let discoveredConcepts = [];
+let currentFeatures = []; // cache of visible spatial entities for concept filtering
 
 const depthColors = ['#185FA5','#1D9E75','#D85A30','#BA7517'];
 const fillOps     = [0.22, 0.28, 0.38, 0.48];
@@ -419,6 +420,8 @@ async function loadLevel(urn, depth) {
       setStatus(`${children.length} children found, none with geometry yet.`);
       setLoading(false); return;
     }
+
+    currentFeatures = features; // cache for concept filtering
 
     const col = depthColors[Math.min(depth, 3)];
     currentLayer = L.geoJSON({ type:'FeatureCollection', features }, {
@@ -523,41 +526,38 @@ function selectConceptTag(el, urn, label) {
 
 async function filterByConcept(urn, label) {
   if (!urn) return;
-  setLoading(true, `Mapping "${label}"…`);
-  setStatus('Searching…');
+  if (currentFeatures.length === 0) {
+    setStatus('Drill into a region first, then filter by concept.'); return;
+  }
   if (conceptLayer) { map.removeLayer(conceptLayer); conceptLayer = null; }
 
-  try {
-    const data = await fetchJSON(`${API}/spatial_by_concept?urn=${encodeURIComponent(urn)}`);
-    if (!data || data.length === 0) {
-      setStatus(`No mapped locations for "${label}".`); setLoading(false); return;
-    }
-    const features = [];
-    for (const item of data.slice(0, 80)) {
-      if (!item.urn) continue;
-      try {
-        const geo = await fetchJSON(`${API}/geojson?urn=${encodeURIComponent(item.urn)}`);
-        if (geo && geo.geometry)
-          features.push({ type:'Feature', geometry: geo.geometry,
-            properties: { urn: item.urn, label: item.label || labelFromUrn(item.urn) } });
-      } catch(e) {}
-    }
-    if (features.length === 0) {
-      setStatus(`No geometry found for "${label}" locations.`); setLoading(false); return;
-    }
-    conceptLayer = L.geoJSON({ type:'FeatureCollection', features }, {
-      style: { color:'#7F77DD', weight:2, fillColor:'#7F77DD', fillOpacity:0.55 },
-      onEachFeature: (f, layer) => {
-        layer.on('click', () => showInfo(f.properties.urn, f.properties.label, 3));
+  setStatus(`Checking ${currentFeatures.length} areas for "${label}"…`);
+  const matches = [];
+  let checked = 0;
+
+  for (const f of currentFeatures) {
+    try {
+      const data = await fetchJSON(`${API}/concepts_in_spatial?urn=${encodeURIComponent(f.properties.urn)}`);
+      if (data && data.some(c => c.urn === urn || (c.label || '').toLowerCase() === label.toLowerCase())) {
+        matches.push(f);
       }
-    }).addTo(map);
-    map.fitBounds(conceptLayer.getBounds(), { padding: [20,20] });
-    setStatus(`${features.length} spaces with "${label}"`);
-  } catch(e) {
-    setStatus(`Concept error: ${e.message}`);
-    console.error(e);
+    } catch(e) {}
+    checked++;
+    setStatus(`Checking… ${checked}/${currentFeatures.length}`);
   }
-  setLoading(false);
+
+  if (matches.length === 0) {
+    setStatus(`"${label}" not found in any visible area.`); return;
+  }
+
+  conceptLayer = L.geoJSON({ type:'FeatureCollection', features: matches }, {
+    style: { color:'#7F77DD', weight:2, fillColor:'#7F77DD', fillOpacity:0.55 },
+    onEachFeature: (f, layer) => {
+      layer.on('click', () => showInfo(f.properties.urn, f.properties.label, 3));
+    }
+  }).addTo(map);
+  map.fitBounds(conceptLayer.getBounds(), { padding: [20,20] });
+  setStatus(`${matches.length} of ${currentFeatures.length} areas contain "${label}"`);
 }
 
 function clearConcept() {
