@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PALP Pompeii Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff;
+    --bg-secondary: #f5f4f0;
+    --text: #1a1a1a;
+    --text-secondary: #666;
+    --text-tertiary: #999;
+    --border: rgba(0,0,0,0.12);
+    --border-hover: rgba(0,0,0,0.25);
+    --blue: #185FA5;
+    --purple: #7F77DD;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1e1e1e;
+      --bg-secondary: #2a2a2a;
+      --text: #e8e8e8;
+      --text-secondary: #aaa;
+      --text-tertiary: #666;
+      --border: rgba(255,255,255,0.12);
+      --border-hover: rgba(255,255,255,0.25);
+      --blue: #5BA3E8;
+      --purple: #A89FF0;
+    }
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-secondary);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 16px;
+  }
+  h1 {
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: var(--text);
+  }
+  .subtitle {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+  .subtitle a { color: var(--blue); }
+  #toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  #breadcrumb {
+    font-size: 13px;
+    color: var(--text-secondary);
+    flex: 1;
+    min-width: 160px;
+  }
+  #breadcrumb .nav { cursor: pointer; color: var(--blue); }
+  #breadcrumb .nav:hover { text-decoration: underline; }
+  #breadcrumb .sep { color: var(--text-tertiary); margin: 0 4px; }
+  #breadcrumb .cur { color: var(--text); }
+  #status { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+  #main { display: flex; gap: 10px; align-items: flex-start; }
+  #concept-panel {
+    width: 210px;
+    flex-shrink: 0;
+    background: var(--bg);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 10px;
+    max-height: 580px;
+    overflow-y: auto;
+  }
+  #concept-panel h4 {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  #concept-search {
+    width: 100%;
+    font-size: 12px;
+    padding: 5px 8px;
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    color: var(--text);
+    margin-bottom: 8px;
+    outline: none;
+  }
+  #concept-search:focus { border-color: var(--blue); }
+  .concept-group { margin-bottom: 10px; }
+  .concept-group-label {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    margin-bottom: 4px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .concept-tag {
+    display: inline-block;
+    margin: 2px 2px 0 0;
+    padding: 3px 8px;
+    font-size: 11px;
+    background: var(--bg-secondary);
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text);
+    transition: background 0.1s, border-color 0.1s, color 0.1s;
+  }
+  .concept-tag:hover { background: #E6F1FB; border-color: var(--blue); color: var(--blue); }
+  .concept-tag.active { background: var(--purple); border-color: var(--purple); color: #fff; }
+  #clear-concept {
+    display: none;
+    width: 100%;
+    margin-top: 8px;
+    padding: 4px 8px;
+    font-size: 11px;
+    border: 0.5px solid var(--border-hover);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-secondary);
+  }
+  #clear-concept:hover { background: var(--bg-secondary); }
+  #map-wrap {
+    flex: 1;
+    height: 580px;
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    position: relative;
+    min-width: 0;
+    background: var(--bg);
+  }
+  #map { width: 100%; height: 100%; }
+  #info-panel {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 220px;
+    background: var(--bg);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    font-size: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+    display: none;
+    z-index: 500;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  #info-panel h3 { font-size: 13px; font-weight: 500; margin-bottom: 5px; color: var(--text); }
+  .meta { color: var(--text-secondary); font-size: 11px; margin-bottom: 3px; }
+  .panel-btn {
+    padding: 4px 9px;
+    font-size: 11px;
+    border: 0.5px solid var(--border-hover);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    background: transparent;
+    color: var(--text);
+    width: 100%;
+    text-align: left;
+    margin-top: 5px;
+  }
+  .panel-btn:hover { background: var(--bg-secondary); }
+  .panel-btn.muted { color: var(--text-secondary); }
+  .ext-link { display: block; margin-top: 5px; font-size: 10px; color: var(--blue); }
+  #loading-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(128,128,128,0.1);
+    z-index: 999;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .legend {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background: var(--bg);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 7px 10px;
+    font-size: 10px;
+    color: var(--text-secondary);
+    z-index: 400;
+  }
+  .lr { display: flex; align-items: center; gap: 5px; margin-bottom: 2px; }
+  .sw { width: 10px; height: 10px; border-radius: 2px; }
+  /* Note banner */
+  #cors-note {
+    background: #FFF8E6;
+    border: 0.5px solid #EFD080;
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #7A5A00;
+    margin-bottom: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    #cors-note { background: #2a2300; border-color: #6a5000; color: #e0c060; }
+  }
+</style>
+</head>
+<body>
+
+<h1>PALP Pompeii Interactive Map</h1>
+<p class="subtitle">Data from the <a href="https://palp.art" target="_blank">Pompeii Artistic Landscape Project</a> via <a href="https://api.p-lod.org" target="_blank">api.p-lod.org</a></p>
+
+<div id="cors-note">
+  <strong>Note:</strong> Concept filtering works by checking each visible area individually using <code>concepts_in_spatial</code>.
+  Drill into a region first, then click a concept — it will scan the visible areas and highlight matches.
+</div>
+
+<div id="toolbar">
+  <div id="breadcrumb"><span class="nav" onclick="jumpTo(0)">Pompeii</span></div>
+  <div id="status">Loading…</div>
+</div>
+
+<div id="main">
+  <div id="concept-panel">
+    <h4>Concepts</h4>
+    <input id="concept-search" type="text" placeholder="Filter concepts…" oninput="filterConceptList(this.value)" />
+    <div id="concept-list"></div>
+    <button id="clear-concept" onclick="clearConcept()">Clear filter ×</button>
+  </div>
+
+  <div id="map-wrap">
+    <div id="map"></div>
+    <div id="loading-overlay">Fetching Pompeii regions…</div>
+    <div id="info-panel">
+      <h3 id="ip-title">—</h3>
+      <div class="meta" id="ip-id">—</div>
+      <div class="meta" id="ip-type">—</div>
+      <div id="ip-extra"></div>
+      <button class="panel-btn" id="ip-drill" style="display:none">Explore children ↓</button>
+      <a class="ext-link" id="ip-link" target="_blank" href="#">View on PALP ↗</a>
+      <button class="panel-btn muted" onclick="document.getElementById('info-panel').style.display='none'">Close</button>
+    </div>
+    <div class="legend">
+      <div class="lr"><div class="sw" style="background:#185FA5;opacity:0.55"></div> Region</div>
+      <div class="lr"><div class="sw" style="background:#1D9E75;opacity:0.6"></div> Insula</div>
+      <div class="lr"><div class="sw" style="background:#D85A30;opacity:0.65"></div> Property</div>
+      <div class="lr"><div class="sw" style="background:#BA7517;opacity:0.7"></div> Room / space</div>
+      <div class="lr"><div class="sw" style="background:#7F77DD;"></div> Concept match</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'https://api.p-lod.org';
+
+const SEED_CONCEPTS = {
+  "Deities & Mythology": [
+    { label: "Venus",           urn: "urn:p-lod:id:venus" },
+    { label: "Apollo",          urn: "urn:p-lod:id:apollo" },
+    { label: "Bacchus",         urn: "urn:p-lod:id:bacchus" },
+    { label: "Mercury",         urn: "urn:p-lod:id:mercury" },
+    { label: "Hercules",        urn: "urn:p-lod:id:hercules" },
+    { label: "Mars",            urn: "urn:p-lod:id:mars" },
+    { label: "Diana",           urn: "urn:p-lod:id:diana" },
+    { label: "Jupiter",         urn: "urn:p-lod:id:jupiter" },
+    { label: "Minerva",         urn: "urn:p-lod:id:minerva" },
+    { label: "Neptune",         urn: "urn:p-lod:id:neptune" },
+    { label: "Cupid / Eros",    urn: "urn:p-lod:id:cupid" },
+    { label: "Isis",            urn: "urn:p-lod:id:isis" },
+  ],
+  "Figures & Subjects": [
+    { label: "Serpent",         urn: "urn:p-lod:id:serpent" },
+    { label: "Satyr",           urn: "urn:p-lod:id:satyr" },
+    { label: "Maenad",          urn: "urn:p-lod:id:maenad" },
+    { label: "Gladiator",       urn: "urn:p-lod:id:gladiator" },
+    { label: "Pygmy",           urn: "urn:p-lod:id:pygmy" },
+    { label: "Genius",          urn: "urn:p-lod:id:genius" },
+    { label: "Lares",           urn: "urn:p-lod:id:lares" },
+  ],
+  "Narrative Scenes": [
+    { label: "Hunt scene",      urn: "urn:p-lod:id:hunt-scene" },
+    { label: "Erotic scene",    urn: "urn:p-lod:id:erotic-scene" },
+    { label: "Banquet scene",   urn: "urn:p-lod:id:banquet-scene" },
+    { label: "Nilotic scene",   urn: "urn:p-lod:id:nilotic-scene" },
+    { label: "Still life",      urn: "urn:p-lod:id:still-life" },
+    { label: "Landscape",       urn: "urn:p-lod:id:landscape" },
+    { label: "Garden painting", urn: "urn:p-lod:id:garden-painting" },
+  ],
+  "Objects & Motifs": [
+    { label: "Amphora",         urn: "urn:p-lod:id:amphora" },
+    { label: "Altar",           urn: "urn:p-lod:id:altar" },
+    { label: "Garland",         urn: "urn:p-lod:id:garland" },
+    { label: "Thyrsus",         urn: "urn:p-lod:id:thyrsus" },
+    { label: "Phallus",         urn: "urn:p-lod:id:phallus" },
+    { label: "Mask",            urn: "urn:p-lod:id:mask" },
+  ],
+  "Decorative Styles": [
+    { label: "First Style",     urn: "urn:p-lod:id:first-style" },
+    { label: "Second Style",    urn: "urn:p-lod:id:second-style" },
+    { label: "Third Style",     urn: "urn:p-lod:id:third-style" },
+    { label: "Fourth Style",    urn: "urn:p-lod:id:fourth-style" },
+  ],
+  "Discovered from map": []
+};
+
+const map = L.map('map', { preferCanvas: true }).setView([40.7506, 14.4875], 16);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+  subdomains: 'abcd', maxZoom: 22
+}).addTo(map);
+
+let currentLayer   = null;
+let conceptLayer   = null;
+let navStack       = [{ urn: 'urn:p-lod:id:pompeii', label: 'Pompeii' }];
+let activeConceptUrn = null;
+let activeTagEl    = null;
+let discoveredConcepts = [];
+let currentFeatures = []; // cache of visible spatial entities for concept filtering
+
+const depthColors = ['#185FA5','#1D9E75','#D85A30','#BA7517'];
+const fillOps     = [0.22, 0.28, 0.38, 0.48];
+const strokeOps   = [0.7,  0.75, 0.8,  0.85];
+
+function setStatus(t)  { document.getElementById('status').textContent = t; }
+function setLoading(on, msg) {
+  const el = document.getElementById('loading-overlay');
+  el.style.display = on ? 'flex' : 'none';
+  if (msg) el.textContent = msg;
+}
+
+async function fetchJSON(url) {
+  const r = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+function labelFromUrn(urn) {
+  return urn.split(':').pop().replace(/-/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function typeFromUrn(urn) {
+  const p = urn.split(':').pop();
+  if (p === 'pompeii')          return 'city';
+  if (/^region-/.test(p))       return 'region';
+  if (/^\d+\.\d+$/.test(p))     return 'insula';
+  if (/^\d+\.\d+\.\d+/.test(p)) return 'property / room';
+  return 'space';
+}
+
+function updateBreadcrumb() {
+  const bc = document.getElementById('breadcrumb');
+  bc.innerHTML = navStack.map((n, i) => {
+    if (i === navStack.length - 1) return `<span class="cur">${n.label}</span>`;
+    return `<span class="nav" onclick="jumpTo(${i})">${n.label}</span>`;
+  }).join('<span class="sep">›</span>');
+}
+
+function jumpTo(idx) {
+  navStack = navStack.slice(0, idx + 1);
+  updateBreadcrumb();
+  loadLevel(navStack[idx].urn, idx);
+}
+
+async function drillTo(urn, label) {
+  const ex = navStack.findIndex(n => n.urn === urn);
+  if (ex >= 0) { jumpTo(ex); return; }
+  navStack.push({ urn, label });
+  updateBreadcrumb();
+  loadLevel(urn, navStack.length - 1);
+}
+
+async function loadLevel(urn, depth) {
+  setLoading(true, 'Fetching spatial data…');
+  setStatus('Loading…');
+  document.getElementById('info-panel').style.display = 'none';
+  if (conceptLayer) { map.removeLayer(conceptLayer); conceptLayer = null; }
+  if (activeTagEl)  { activeTagEl.classList.remove('active'); activeTagEl = null; }
+  activeConceptUrn = null;
+  document.getElementById('clear-concept').style.display = 'none';
+
+  try {
+    const children = await fetchJSON(`${API}/spatial_children/${urn.split(':').pop()}`);
+    if (!children || children.length === 0) {
+      setStatus('No spatial children found.'); setLoading(false); return;
+    }
+    if (currentLayer) { map.removeLayer(currentLayer); currentLayer = null; }
+
+    const features = [];
+    for (const child of children) {
+      if (!child.urn) continue;
+      try {
+        const geo = await fetchJSON(`${API}/geojson/${child.urn.split(':').pop()}`);
+        if (geo && geo.geometry)
+          features.push({ type:'Feature', geometry: geo.geometry,
+            properties: { urn: child.urn, label: child.label || labelFromUrn(child.urn), depth } });
+      } catch(e) {}
+    }
+
+    if (features.length === 0) {
+      setStatus(`${children.length} children found, none with geometry yet.`);
+      setLoading(false); return;
+    }
+
+    currentFeatures = features; // cache for concept filtering
+
+    const col = depthColors[Math.min(depth, 3)];
+    currentLayer = L.geoJSON({ type:'FeatureCollection', features }, {
+      style: () => ({
+        color: col, weight: 1.5,
+        opacity: strokeOps[Math.min(depth, 3)],
+        fillColor: col,
+        fillOpacity: fillOps[Math.min(depth, 3)]
+      }),
+      onEachFeature: (f, layer) => {
+        const p = f.properties;
+        layer.on('click', () => showInfo(p.urn, p.label, p.depth));
+        layer.on('mouseover', () => layer.setStyle({ fillOpacity: Math.min(fillOps[Math.min(depth,3)] + 0.2, 0.75) }));
+        layer.on('mouseout',  () => layer.setStyle({ fillOpacity: fillOps[Math.min(depth,3)] }));
+      }
+    }).addTo(map);
+
+    map.fitBounds(currentLayer.getBounds(), { padding: [20,20] });
+    setStatus(`${features.length} areas shown`);
+  } catch(e) {
+    setStatus(`Error: ${e.message}`);
+    console.error(e);
+  }
+  setLoading(false);
+}
+
+async function showInfo(urn, label, depth) {
+  const panel = document.getElementById('info-panel');
+  panel.style.display = 'block';
+  document.getElementById('ip-title').textContent = label;
+  document.getElementById('ip-id').textContent = urn.split(':').pop();
+  document.getElementById('ip-type').textContent = typeFromUrn(urn);
+  document.getElementById('ip-extra').innerHTML = '<span style="font-size:10px;color:var(--text-secondary)">Loading concepts…</span>';
+  document.getElementById('ip-link').href = `https://palp.art/browse/${urn.split(':').pop()}`;
+  const drill = document.getElementById('ip-drill');
+  drill.style.display = 'inline-block';
+  drill.onclick = () => drillTo(urn, label);
+
+  try {
+    const data = await fetchJSON(`${API}/concepts_in_spatial/${urn.split(':').pop()}`);
+    if (data && data.length > 0) {
+      const newConcepts = data.filter(c => c.urn && !discoveredConcepts.find(d => d.urn === c.urn));
+      if (newConcepts.length > 0) {
+        discoveredConcepts = [...discoveredConcepts, ...newConcepts];
+        renderConceptList();
+      }
+      const tags = data.slice(0,12).map(c => {
+        const lbl = c.label || labelFromUrn(c.urn || '');
+        const u   = c.urn || '';
+        return `<span onclick="selectConceptTag(null,'${u}','${lbl.replace(/'/g,'')}')"
+          style="display:inline-block;margin:2px 2px 0 0;padding:2px 7px;font-size:10px;
+          background:var(--bg-secondary);border:0.5px solid var(--border);border-radius:4px;
+          cursor:pointer;color:var(--text)">${lbl}</span>`;
+      }).join('');
+      document.getElementById('ip-extra').innerHTML =
+        `<p style="font-size:10px;color:var(--text-secondary);margin:6px 0 3px">Concepts here (click to map):</p>${tags}`;
+    } else {
+      document.getElementById('ip-extra').innerHTML =
+        '<span style="font-size:10px;color:var(--text-secondary)">No concepts recorded.</span>';
+    }
+  } catch(e) {
+    document.getElementById('ip-extra').innerHTML =
+      '<span style="font-size:10px;color:var(--text-secondary)">Concepts unavailable.</span>';
+  }
+}
+
+function renderConceptList(filter) {
+  const container = document.getElementById('concept-list');
+  container.innerHTML = '';
+  const q = (filter || '').toLowerCase();
+
+  Object.entries(SEED_CONCEPTS).forEach(([group, items]) => {
+    let list = (group === 'Discovered from map') ? discoveredConcepts : items;
+    if (q) list = list.filter(c => c.label.toLowerCase().includes(q));
+    if (list.length === 0) return;
+
+    const g = document.createElement('div');
+    g.className = 'concept-group';
+    g.innerHTML = `<div class="concept-group-label">${group}</div>`;
+    list.forEach(c => {
+      const tag = document.createElement('span');
+      tag.className = 'concept-tag' + (c.urn === activeConceptUrn ? ' active' : '');
+      tag.textContent = c.label;
+      tag.dataset.urn = c.urn;
+      tag.onclick = () => selectConceptTag(tag, c.urn, c.label);
+      g.appendChild(tag);
+    });
+    container.appendChild(g);
+  });
+}
+
+function filterConceptList(val) { renderConceptList(val); }
+
+function selectConceptTag(el, urn, label) {
+  if (activeTagEl) activeTagEl.classList.remove('active');
+  if (!el) el = document.querySelector(`.concept-tag[data-urn="${urn}"]`);
+  if (el)  { el.classList.add('active'); activeTagEl = el; }
+  activeConceptUrn = urn;
+  document.getElementById('clear-concept').style.display = 'block';
+  filterByConcept(urn, label);
+}
+
+async function filterByConcept(urn, label) {
+  if (!urn) return;
+  if (currentFeatures.length === 0) {
+    setStatus('Drill into a region first, then filter by concept.'); return;
+  }
+  if (conceptLayer) { map.removeLayer(conceptLayer); conceptLayer = null; }
+
+  setStatus(`Checking ${currentFeatures.length} areas for "${label}"…`);
+  const matches = [];
+  let checked = 0;
+
+  for (const f of currentFeatures) {
+    try {
+      const data = await fetchJSON(`${API}/concepts_in_spatial/${f.properties.urn.split(':').pop()}`);
+      if (data && data.some(c => c.urn === urn || (c.label || '').toLowerCase() === label.toLowerCase())) {
+        matches.push(f);
+      }
+    } catch(e) {}
+    checked++;
+    setStatus(`Checking… ${checked}/${currentFeatures.length}`);
+  }
+
+  if (matches.length === 0) {
+    setStatus(`"${label}" not found in any visible area.`); return;
+  }
+
+  conceptLayer = L.geoJSON({ type:'FeatureCollection', features: matches }, {
+    style: { color:'#7F77DD', weight:2, fillColor:'#7F77DD', fillOpacity:0.55 },
+    onEachFeature: (f, layer) => {
+      layer.on('click', () => showInfo(f.properties.urn, f.properties.label, 3));
+    }
+  }).addTo(map);
+  map.fitBounds(conceptLayer.getBounds(), { padding: [20,20] });
+  setStatus(`${matches.length} of ${currentFeatures.length} areas contain "${label}"`);
+}
+
+function clearConcept() {
+  if (conceptLayer) { map.removeLayer(conceptLayer); conceptLayer = null; }
+  if (activeTagEl)  { activeTagEl.classList.remove('active'); activeTagEl = null; }
+  activeConceptUrn = null;
+  document.getElementById('clear-concept').style.display = 'none';
+  document.getElementById('concept-search').value = '';
+  renderConceptList();
+  setStatus(currentLayer ? 'Map active' : 'Ready');
+}
+
+renderConceptList();
+loadLevel('urn:p-lod:id:pompeii', 0);
+</script>
+</body>
+</html>
