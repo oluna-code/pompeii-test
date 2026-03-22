@@ -271,7 +271,6 @@
 
 <script>
 const API = 'https://api.p-lod.org';
-const PROXY = 'https://bold-butterfly-b0fa.otto-i-luna.workers.dev';
 
 const SEED_CONCEPTS = {
   "Deities & Mythology": [
@@ -399,7 +398,7 @@ async function loadLevel(urn, depth) {
   document.getElementById('clear-concept').style.display = 'none';
 
   try {
-    const children = await fetchJSON(`${API}/spatial_children?urn=${encodeURIComponent(urn)}`);
+    const children = await fetchJSON(`${API}/spatial_children/${urn.split(':').pop()}`);
     if (!children || children.length === 0) {
       setStatus('No spatial children found.'); setLoading(false); return;
     }
@@ -409,7 +408,7 @@ async function loadLevel(urn, depth) {
     for (const child of children) {
       if (!child.urn) continue;
       try {
-        const geo = await fetchJSON(`${API}/geojson?urn=${encodeURIComponent(child.urn)}`);
+        const geo = await fetchJSON(`${API}/geojson/${child.urn.split(':').pop()}`);
         if (geo && geo.geometry)
           features.push({ type:'Feature', geometry: geo.geometry,
             properties: { urn: child.urn, label: child.label || labelFromUrn(child.urn), depth } });
@@ -461,7 +460,7 @@ async function showInfo(urn, label, depth) {
   drill.onclick = () => drillTo(urn, label);
 
   try {
-    const data = await fetchJSON(`${API}/concepts_in_spatial?urn=${encodeURIComponent(urn)}`);
+    const data = await fetchJSON(`${API}/concepts_in_spatial/${urn.split(':').pop()}`);
     if (data && data.length > 0) {
       const newConcepts = data.filter(c => c.urn && !discoveredConcepts.find(d => d.urn === c.urn));
       if (newConcepts.length > 0) {
@@ -537,7 +536,7 @@ async function filterByConcept(urn, label) {
 
   for (const f of currentFeatures) {
     try {
-      const data = await fetchJSON(`${PROXY}/concepts_in_spatial?urn=${encodeURIComponent(f.properties.urn)}`);
+      const data = await fetchJSON(`${API}/concepts_in_spatial/${f.properties.urn.split(':').pop()}`);
       if (data && data.some(c => c.urn === urn || (c.label || '').toLowerCase() === label.toLowerCase())) {
         matches.push(f);
       }
