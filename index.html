@@ -229,9 +229,8 @@
 <p class="subtitle">Data from the <a href="https://palp.art" target="_blank">Pompeii Artistic Landscape Project</a> via <a href="https://api.p-lod.org" target="_blank">api.p-lod.org</a></p>
 
 <div id="cors-note">
-  <strong>Note:</strong> The <code>spatial_by_concept</code> endpoint may be blocked by CORS when running locally.
-  Spatial drill-down and <code>concepts_in_spatial</code> (info panel) work fine. If concept filtering fails,
-  try serving this file with <code>python3 -m http.server</code> or open it via a local dev server.
+  <strong>Setup required:</strong> Deploy <code>palp-proxy-worker.js</code> as a Cloudflare Worker, then replace
+  <code>YOUR-WORKER-SUBDOMAIN</code> in the script below with your worker's URL.
 </div>
 
 <div id="toolbar">
@@ -270,7 +269,9 @@
 </div>
 
 <script>
-const API = 'https://api.p-lod.org';
+// Replace this with your Cloudflare Worker URL after deploying palp-proxy-worker.js
+// e.g. 'https://palp-proxy.yourname.workers.dev'
+const API = 'https://bold-butterfly-b0fa.otto-i-luna.workers.dev';
 
 const SEED_CONCEPTS = {
   "Deities & Mythology": [
