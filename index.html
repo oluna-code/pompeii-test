@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -269,9 +270,8 @@
 </div>
 
 <script>
-// Replace this with your Cloudflare Worker URL after deploying palp-proxy-worker.js
-// e.g. 'https://palp-proxy.yourname.workers.dev'
-const API = 'https://bold-butterfly-b0fa.otto-i-luna.workers.dev';
+const API = 'https://api.p-lod.org';
+const PROXY = 'https://bold-butterfly-b0fa.otto-i-luna.workers.dev';
 
 const SEED_CONCEPTS = {
   "Deities & Mythology": [
@@ -537,7 +537,7 @@ async function filterByConcept(urn, label) {
 
   for (const f of currentFeatures) {
     try {
-      const data = await fetchJSON(`${API}/concepts_in_spatial?urn=${encodeURIComponent(f.properties.urn)}`);
+      const data = await fetchJSON(`${PROXY}/concepts_in_spatial?urn=${encodeURIComponent(f.properties.urn)}`);
       if (data && data.some(c => c.urn === urn || (c.label || '').toLowerCase() === label.toLowerCase())) {
         matches.push(f);
       }
